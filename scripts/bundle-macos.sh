@@ -11,18 +11,18 @@ rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp target/release/oxicord "$APP/Contents/MacOS/oxicord"
 
-if [ ! -f assets/icon.icns ]; then
-    [ -f assets/icon.png ] || python3 scripts/make-icon.py assets/icon.png
-    SET=target/icon.iconset
-    rm -rf "$SET" && mkdir -p "$SET"
-    for s in 16 32 128 256 512; do
-        sips -z $s $s assets/icon.png --out "$SET/icon_${s}x${s}.png" >/dev/null
-        d=$((s * 2))
-        sips -z $d $d assets/icon.png --out "$SET/icon_${s}x${s}@2x.png" >/dev/null
-    done
-    iconutil -c icns "$SET" -o assets/icon.icns
-fi
-cp assets/icon.icns "$APP/Contents/Resources/icon.icns"
+# assets/icon.local.png (untracked) overrides the project icon on this machine.
+[ -f assets/icon.png ] || python3 scripts/make-icon.py assets/icon.png
+ICON=assets/icon.png
+[ -f assets/icon.local.png ] && ICON=assets/icon.local.png
+SET=target/icon.iconset
+rm -rf "$SET" && mkdir -p "$SET"
+for s in 16 32 128 256 512; do
+    sips -z $s $s "$ICON" --out "$SET/icon_${s}x${s}.png" >/dev/null
+    d=$((s * 2))
+    sips -z $d $d "$ICON" --out "$SET/icon_${s}x${s}@2x.png" >/dev/null
+done
+iconutil -c icns "$SET" -o "$APP/Contents/Resources/icon.icns"
 
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
