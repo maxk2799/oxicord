@@ -1,0 +1,34 @@
+[package]
+name = "oxicord"
+version = "0.1.0"
+edition = "2024"
+description = "A small, fast Discord client shell in Rust with Vencord built in"
+license = "GPL-3.0-or-later"
+
+[dependencies]
+base64 = "0.23"
+dirs = "7"
+muda = "0.21"
+open = "5"
+serde_json = "1"
+tao = "0.37"
+ureq = "3"
+url = "2"
+wry = { version = "0.57", features = ["devtools"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+block2 = "0.6"
+objc2 = "0.6"
+objc2-foundation = "0.3"
+objc2-user-notifications = "0.3"
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = true
+
+# Keep debug builds of dependencies fast enough to be usable.
+[profile.dev.package."*"]
+opt-level = 2
