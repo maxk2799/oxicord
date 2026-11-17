@@ -26,8 +26,11 @@ jobs:
           $report = Join-Path $env:RUNNER_TEMP "oxicord-report.json"
           $env:OXICORD_SELFTEST = $report
           $env:OXICORD_NO_UPDATE = "1"
+          $env:OXICORD_LOG = Join-Path $env:RUNNER_TEMP "oxicord.log"
           $p = Start-Process -FilePath "target\release\oxicord.exe" -PassThru
-          if (-not $p.WaitForExit(120000)) { $p.Kill(); throw "Oxicord did not report within two minutes" }
+          $done = $p.WaitForExit(90000)
+          if (Test-Path $env:OXICORD_LOG) { Get-Content $env:OXICORD_LOG } else { "(no log written)" }
+          if (-not $done) { $p.Kill(); throw "Oxicord did not report within 90 seconds" }
           if (-not (Test-Path $report)) { throw "Oxicord exited without writing a report (exit code $($p.ExitCode))" }
           Get-Content $report
           $r = Get-Content $report -Raw | ConvertFrom-Json

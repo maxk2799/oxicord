@@ -60,6 +60,17 @@ enum UserEvent {
     Probe(String),
 }
 
+/// Print a diagnostic line, and append it to the file named by OXICORD_LOG if set (a Windows app has no console).
+fn log(line: &str) {
+    eprintln!("[oxicord] {line}");
+    if let Some(path) = std::env::var_os("OXICORD_LOG") {
+        use std::io::Write;
+        if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
+            let _ = writeln!(f, "{line}");
+        }
+    }
+}
+
 fn home_url() -> &'static str {
     match std::env::var("OXICORD_CHANNEL").as_deref() {
         Ok("canary") => "https://canary.discord.com/app",
@@ -248,6 +259,7 @@ fn handle_ipc(
     let from_discord = request.uri().scheme_str() == Some("https")
         && request.uri().host().is_some_and(is_discord_host);
     if !from_discord {
+        log(&format!("ignored a message from {}", request.uri()));
         return;
     }
     let Ok(msg) = serde_json::from_str::<Value>(request.body()) else { return };
@@ -403,6 +415,10 @@ fn main() -> wry::Result<()> {
         .with_on_page_load_handler({
             let proxy = proxy.clone();
             move |event, url| {
+                if std::env::var_os("OXICORD_LOG").is_some() {
+                    let stage = if matches!(event, PageLoadEvent::Started) { "started" } else { "finished" };
+                    log(&format!("page load {stage}: {url}"));
+                }
                 if matches!(event, PageLoadEvent::Started)
                     && url.starts_with("http")
                     && !is_discord_url(&url)
@@ -487,12 +503,12 @@ fn main() -> wry::Result<()> {
     let mut menu = None;
 
     vencord::spawn_updater(agent, cache_dir, bundle.version.clone());
-    eprintln!(
-        "[oxicord] window up in {} ms, Vencord {} ({})",
+    log(&format!(
+        "window up in {} ms, Vencord {} ({})",
         started.elapsed().as_millis(),
         bundle.version,
         if bundle.cached { "updated copy" } else { "built in" }
-    );
+    ));
     let vencord_version = bundle.version;
     drop((bundle.js, bundle.css));
 
@@ -573,17 +589,17 @@ fn main() -> wry::Result<()> {
             }
 
             Event::UserEvent(UserEvent::Ready(report)) => {
-                eprintln!(
-                    "[oxicord] page ready {} ms after launch: {report}",
+                log(&format!(
+                    "page ready {} ms after launch: {report}",
                     started.elapsed().as_millis()
-                );
+                ));
             }
 
             Event::UserEvent(UserEvent::Interactive(page_ms)) => {
-                eprintln!(
-                    "[oxicord] Discord usable {} ms after launch ({page_ms} ms of that in the page)",
+                log(&format!(
+                    "Discord usable {} ms after launch ({page_ms} ms of that in the page)",
                     started.elapsed().as_millis()
-                );
+                ));
             }
 
             Event::UserEvent(UserEvent::Drag) => {
@@ -595,7 +611,7 @@ fn main() -> wry::Result<()> {
             }
 
             Event::UserEvent(UserEvent::Probe(report)) => {
-                eprintln!("[oxicord] page check: {report}");
+                log(&format!("page check: {report}"));
                 if let Some(target) = &selftest {
                     println!("{report}");
                     if target != "1" {

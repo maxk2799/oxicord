@@ -2,7 +2,8 @@
 # Build the Mac download and publish it to a download server.
 #   OXICORD_SERVER=user@host scripts/release.sh "What changed" "Another change"
 # Each argument is one line of release notes. Optional: OXICORD_SSH_KEY, OXICORD_SSH_OPTS,
-# OXICORD_REMOTE_DIR (default /srv/downloads/oxicord).
+# OXICORD_REMOTE_DIR (default /srv/downloads/oxicord), and OXICORD_WINDOWS_ZIP: the Oxicord-Windows.zip that the
+# "Windows build" workflow made for the same commit (gh run download), published alongside.
 set -eu
 cd "$(dirname "$0")/.."
 : "${OXICORD_SERVER:?set OXICORD_SERVER to user@host}"
@@ -21,11 +22,15 @@ print(json.dumps({"version": sys.argv[1], "date": time.strftime("%Y-%m-%dT%H:%M:
     "$VERSION" "$notes" > target/dist/release.json
 
 # shellcheck disable=SC2086
-scp -q $KEY $OPTS target/dist/Oxicord-Mac.zip target/dist/release.json "$OXICORD_SERVER:"
+WIN="${OXICORD_WINDOWS_ZIP:-}"
+[ -z "$WIN" ] || [ -f "$WIN" ] || { echo "No such file: $WIN"; exit 1; }
+# shellcheck disable=SC2086
+scp -q $KEY $OPTS target/dist/Oxicord-Mac.zip target/dist/release.json $WIN "$OXICORD_SERVER:"
 # shellcheck disable=SC2086
 ssh $KEY $OPTS -o BatchMode=yes "$OXICORD_SERVER" "set -e
 sudo install -d -m 0755 '$DIR'
 sudo install -m 0644 Oxicord-Mac.zip '$DIR/'
+[ ! -f Oxicord-Windows.zip ] || sudo install -m 0644 Oxicord-Windows.zip '$DIR/'
 sudo install -m 0644 release.json '$DIR/'   # last, so the page never names a version before its file is there
-rm -f Oxicord-Mac.zip release.json"
+rm -f Oxicord-Mac.zip Oxicord-Windows.zip release.json"
 echo "Published Oxicord $VERSION"
