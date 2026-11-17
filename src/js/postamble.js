@@ -96,6 +96,33 @@
     document.documentElement.toggleAttribute("data-ox-glass", __OXICORD_SKIN_ON__);
     document.documentElement.toggleAttribute("data-ox-inset", __OXICORD_INSET__);
 
+    // Discord takes a couple of seconds to boot, and its own loading screen is
+    // invisible on a see-through window. Show the finished dark glass with a
+    // quiet spinner straight away, and lift it once the app has drawn.
+    const splash = document.createElement("div");
+    splash.id = "oxicord-splash";
+    splash.innerHTML = "<i></i>";
+    document.documentElement.append(splash);
+    const booted = () =>
+        document.querySelector('nav[class*="guilds_"]') ||
+        (/^\/(login|register|invite|oauth2|verify|reset)/.test(location.pathname) &&
+            document.querySelector("#app-mount form"));
+    const lift = () => {
+        watcher.disconnect();
+        clearTimeout(giveUp);
+        ox.post({ t: "interactive", ms: Math.round(performance.now() - ox.t0) });
+        // Those pages are hidden from the sidebar, so don't reopen on one.
+        if (/^\/(quest-home|shop|store)\b/.test(location.pathname)) {
+            history.pushState(null, "", "/channels/@me");
+            dispatchEvent(new PopStateEvent("popstate"));
+        }
+        splash.classList.add("done");
+        setTimeout(() => splash.remove(), 220);
+    };
+    const watcher = new MutationObserver(() => booted() && lift());
+    watcher.observe(document.documentElement, { childList: true, subtree: true });
+    const giveUp = setTimeout(lift, 15000);
+
     // With no native title strip, Discord's top bar moves the window: drag on
     // its empty space, double-click to zoom. Its buttons keep working.
     if (__OXICORD_INSET__) {

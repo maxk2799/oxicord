@@ -50,6 +50,8 @@ enum UserEvent {
     /// The main frame started loading something that isn't Discord.
     Stray(String),
     Ready(String),
+    /// Discord's interface has drawn (page-side milliseconds since load began).
+    Interactive(u64),
     /// The page's top bar was pressed: move the window.
     Drag,
     /// The page's top bar was double-clicked.
@@ -260,6 +262,9 @@ fn handle_ipc(
         }
         "zoom-window" => {
             let _ = proxy.send_event(UserEvent::ZoomWindow);
+        }
+        "interactive" => {
+            let _ = proxy.send_event(UserEvent::Interactive(msg.get("ms").and_then(Value::as_u64).unwrap_or(0)));
         }
         "probe" => {
             let _ = proxy.send_event(UserEvent::Probe(msg.to_string()));
@@ -553,6 +558,13 @@ fn main() -> wry::Result<()> {
             Event::UserEvent(UserEvent::Ready(report)) => {
                 eprintln!(
                     "[oxicord] page ready {} ms after launch: {report}",
+                    started.elapsed().as_millis()
+                );
+            }
+
+            Event::UserEvent(UserEvent::Interactive(page_ms)) => {
+                eprintln!(
+                    "[oxicord] Discord usable {} ms after launch ({page_ms} ms of that in the page)",
                     started.elapsed().as_millis()
                 );
             }
