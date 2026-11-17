@@ -1,13 +1,25 @@
-/* Oxicord glass skin. The server list and the channel/DM sidebar are one piece of dark glass, as in MeqScanner's
+/* Oxicord glass skin. The server list and the channel/DM sidebar are one piece of dark glass, as in CarFinder's
    sidebar: the Mac's own blur behind the window, under a near-black tint so nothing behind the window is
-   recognisable, with light falling on it from above and a hairline where it meets the page. Everything else is
+   recognisable. The glass lights itself (grain, gloss, rim) so it stays visible even over a black desktop. Everything else is
    left as Discord's own dark theme (Onyx). Done through Discord's theme variables where possible, so it survives
    their class-name churn. */
 
 html[data-ox-glass]:is(.theme-dark, .theme-darker, .theme-midnight) {
-  --ox-glass: rgba(6, 6, 6, 0.8);          /* the black behind the glass; the blur only glows through it */
-  --ox-line: rgba(255, 255, 255, 0.08);
-  --ox-sheen: linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.025) 180px, rgba(255, 255, 255, 0.012));
+  --ox-glass: rgba(4, 4, 4, 0.88);         /* the black behind the glass; the blur only glows through it */
+  --ox-line: rgba(255, 255, 255, 0.10);
+  /* The glass draws its own light, so it reads as glass even with pure black behind the window: a frosted grain,
+     a soft diagonal gloss from the top-left, a brighter band near the top, and a faint milky body. */
+  --ox-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.05 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  --ox-sheen:
+    var(--ox-grain),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.10) 0%, rgba(255, 255, 255, 0.025) 28%, transparent 55%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.02) 220px, rgba(255, 255, 255, 0.035)),
+    rgba(255, 255, 255, 0.03);
+  /* the rim: a bright top/left edge where light catches, a darker bottom, and the hairline at the page */
+  /* No top or left edge lines: the server list and the sidebar must meet as one sheet, with no seam or corner. */
+  --ox-rim:
+    inset -1px 0 0 var(--ox-line),
+    inset 0 18px 40px -24px rgba(255, 255, 255, 0.10);
 }
 
 html[data-ox-glass]:is(.theme-dark, .theme-darker, .theme-midnight),
@@ -37,7 +49,19 @@ html[data-ox-glass]:is(.theme-dark, .theme-darker, .theme-midnight) :is(.theme-d
 html[data-ox-glass]:is(.theme-dark, .theme-darker, .theme-midnight) nav[class*="guilds_"],
 html[data-ox-glass]:is(.theme-dark, .theme-darker, .theme-midnight) [class*="sidebarList_"] {
   background: var(--ox-sheen) !important;
-  box-shadow: inset -1px 0 0 var(--ox-line);
+  box-shadow: none;
+  border-radius: 0 !important;
+}
+/* Only the sidebar's outer edge, where it meets the page, gets the hairline. Discord rounds the sidebar's top-left
+   corner, which shows as a notch against the glass; square it off. */
+html[data-ox-glass]:is(.theme-dark, .theme-darker, .theme-midnight) [class*="sidebarList_"] {
+  box-shadow: var(--ox-rim);
+}
+html[data-ox-glass]:is(.theme-dark, .theme-darker, .theme-midnight) div[class^="sidebar_"],
+html[data-ox-glass]:is(.theme-dark, .theme-darker, .theme-midnight) div[class^="sidebar_"] > * {
+  border-radius: 0 !important;
+  border-top: 0 !important;
+  border-left: 0 !important;
 }
 
 /* The window has no separate title strip: Discord's own top bar is the title bar. Leave room at its left for the
@@ -61,7 +85,9 @@ html[data-ox-inset][data-ox-glass] div[class^="bar_"]:has(> [class^="title_"]) {
   z-index: 2147483647;
   display: grid;
   place-items: center;
-  background: rgba(6, 6, 6, 0.8);
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.07), transparent 50%),
+    rgba(4, 4, 4, 0.88);
   transition: opacity 0.2s ease;
 }
 #oxicord-splash.done { opacity: 0; pointer-events: none; }
