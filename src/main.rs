@@ -294,7 +294,9 @@ fn handle_ipc(
 
 fn main() -> wry::Result<()> {
     let started = Instant::now();
-    let selftest = std::env::var_os("OXICORD_SELFTEST").is_some();
+    // OXICORD_SELFTEST=1 prints the page report and exits; any other value is a file to write it to (a Windows
+    // app has no console to print on).
+    let selftest = std::env::var_os("OXICORD_SELFTEST");
     let (config_dir, cache_dir) = dirs_for_app();
 
     let saved = State::load(&config_dir);
@@ -333,6 +335,12 @@ fn main() -> wry::Result<()> {
     {
         window_builder = window_builder.with_background_color(BACKGROUND);
     }
+    #[cfg(windows)]
+    {
+        // the icon build.rs put in the .exe, for the title bar and taskbar
+        use tao::platform::windows::IconExtWindows;
+        window_builder = window_builder.with_window_icon(tao::window::Icon::from_resource(1, None).ok());
+    }
     window_builder = if saved.size.0 > 0 {
         window_builder.with_inner_size(PhysicalSize::new(saved.size.0, saved.size.1))
     } else {
@@ -362,7 +370,16 @@ fn main() -> wry::Result<()> {
         .replace("__OXICORD_SKIN_ON__", if skin { "true" } else { "false" })
         .replace("__OXICORD_INSET__", if cfg!(target_os = "macos") { "true" } else { "false" });
 
-    let mut builder = WebViewBuilder::new()
+    // Windows and Linux keep the browser profile (the login) where the app says; macOS has its own place for it.
+    #[cfg(not(target_os = "macos"))]
+    let mut web_context = wry::WebContext::new(Some(
+        dirs::data_local_dir().unwrap_or_else(std::env::temp_dir).join("oxicord").join("webview"),
+    ));
+    #[cfg(not(target_os = "macos"))]
+    let builder = WebViewBuilder::new_with_web_context(&mut web_context);
+    #[cfg(target_os = "macos")]
+    let builder = WebViewBuilder::new();
+    let mut builder = builder
         .with_url(home_url())
         .with_initialization_script_for_main_only(preamble, true)
         .with_initialization_script_for_main_only(vencord_js, true)
@@ -579,8 +596,11 @@ fn main() -> wry::Result<()> {
 
             Event::UserEvent(UserEvent::Probe(report)) => {
                 eprintln!("[oxicord] page check: {report}");
-                if selftest {
+                if let Some(target) = &selftest {
                     println!("{report}");
+                    if target != "1" {
+                        let _ = std::fs::write(target, &report);
+                    }
                     *control_flow = ControlFlow::Exit;
                 }
             }

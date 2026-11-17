@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Draw Oxicord's icon (a speech bubble on a rust-coloured tile) with no dependencies."""
+"""Draw Oxicord's icon (a white speech bubble on a blue tile) with no dependencies."""
 import struct, sys, zlib
 
 N = 1024
@@ -21,15 +21,15 @@ for y in range(N):
     rows.append(0)
     for x in range(N):
         tile = cover(rrect(x, y, 512, 512, 412, 412, 185))
-        col = mix((244, 120, 48), (150, 52, 14), y / N)
+        col = mix((64, 156, 255), (22, 82, 214), y / N)
         bubble = rrect(x, y, 512, 470, 250, 190, 110)
         # tail: a small rounded square tucked under the bubble's left side
         tail = rrect(x, y, 372, 650, 62, 62, 18)
         white = cover(min(bubble, tail))
-        col = mix(col, (255, 248, 240), white)
+        col = mix(col, (255, 255, 255), white)
         for ex in (422, 602):  # eyes
             eye = cover(rrect(x, y, ex, 470, 42, 58, 42))
-            col = mix(col, (150, 52, 14), eye)
+            col = mix(col, (28, 96, 226), eye)
         rows += bytes((round(col[0]), round(col[1]), round(col[2]), round(255 * tile)))
 
 def chunk(kind, data):

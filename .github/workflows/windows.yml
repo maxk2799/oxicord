@@ -1,0 +1,48 @@
+name: Windows build
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: Swatinem/rust-cache@v2
+      - name: Build
+        run: cargo build --release
+      - name: Unit tests
+        run: cargo test --release
+      # Start the real app, let it load Discord, and check that Vencord came up inside it.
+      - name: Smoke test
+        shell: pwsh
+        run: |
+          $report = Join-Path $env:RUNNER_TEMP "oxicord-report.json"
+          $env:OXICORD_SELFTEST = $report
+          $env:OXICORD_NO_UPDATE = "1"
+          $p = Start-Process -FilePath "target\release\oxicord.exe" -PassThru
+          if (-not $p.WaitForExit(120000)) { $p.Kill(); throw "Oxicord did not report within two minutes" }
+          if (-not (Test-Path $report)) { throw "Oxicord exited without writing a report (exit code $($p.ExitCode))" }
+          Get-Content $report
+          $r = Get-Content $report -Raw | ConvertFrom-Json
+          if (-not $r.vencord) { throw "Vencord did not load" }
+          if ($r.plugins -lt 50) { throw "Vencord loaded only $($r.plugins) plugins" }
+          if ($r.core -lt 1000) { throw "Vencord's stylesheet is missing" }
+      - name: Package
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist\Oxicord | Out-Null
+          Copy-Item target\release\oxicord.exe dist\Oxicord\Oxicord.exe
+          Copy-Item LICENSE dist\Oxicord\LICENSE.txt
+          Compress-Archive -Path dist\Oxicord -DestinationPath dist\Oxicord-Windows.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Oxicord-Windows
+          path: dist/Oxicord-Windows.zip
+          if-no-files-found: error

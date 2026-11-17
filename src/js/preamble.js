@@ -41,7 +41,8 @@
     // (two of them cost over 3 s of every launch). For that exact shape, do
     // the same job with two ordinary searches: find A, then B after it.
     // ---------------------------------------------------------------------
-    {
+    // Only WebKit needs it; Chromium (Windows) runs these regexes quickly as they are.
+    if (/Apple/.test(navigator.vendor)) {
         const nativeReplace = RegExp.prototype[Symbol.replace];
         const parsed = new Map();
         const NEWLINE = /[\n\r\u2028\u2029]/;

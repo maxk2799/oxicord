@@ -167,6 +167,9 @@
         const cs = getComputedStyle(root);
         ox.post({
             t: "probe",
+            vencord: typeof window.Vencord === "object" && window.Vencord !== null,
+            plugins: window.Vencord?.Plugins?.plugins ? Object.keys(window.Vencord.Plugins.plugins).length : 0,
+            core: (document.getElementById("vencord-css-core")?.textContent ?? "").length,
             skin: root.hasAttribute("data-ox-glass"),
             classes: root.className,
             sidebar: cs.getPropertyValue("--background-base-lower").trim(),
