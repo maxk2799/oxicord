@@ -5,6 +5,8 @@
 #![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
 
 mod css;
+#[cfg(target_os = "macos")]
+mod glass;
 mod notify;
 mod state;
 mod vencord;
@@ -29,6 +31,7 @@ use state::State;
 
 const APP_NAME: &str = "Oxicord";
 /// Discord's dark background, so the window never flashes white.
+#[cfg(not(target_os = "macos"))]
 const BACKGROUND: (u8, u8, u8, u8) = (0x1a, 0x1a, 0x1e, 0xff);
 const DEFAULT_SIZE: (f64, f64) = (1280.0, 800.0);
 const MIN_SIZE: (f64, f64) = (480.0, 360.0);
@@ -47,6 +50,12 @@ enum UserEvent {
     /// The main frame started loading something that isn't Discord.
     Stray(String),
     Ready(String),
+    /// The page's top bar was pressed: move the window.
+    Drag,
+    /// The page's top bar was double-clicked.
+    ZoomWindow,
+    /// A report on the page a few seconds after load.
+    Probe(String),
 }
 
 fn home_url() -> &'static str {
@@ -121,13 +130,14 @@ fn download_target(url: &str, suggested: &std::path::Path) -> Option<PathBuf> {
     Some(path)
 }
 
-fn capture(window: &Window, zoom: f64) -> State {
+fn capture(window: &Window, zoom: f64, skin: bool) -> State {
     let size = window.inner_size();
     State {
         position: window.outer_position().ok().map(|p| (p.x, p.y)),
         size: (size.width, size.height),
         maximized: window.is_maximized(),
         zoom,
+        skin,
     }
 }
 
@@ -143,9 +153,9 @@ fn on_screen(window: &Window, (x, y): (i32, i32)) -> bool {
 }
 
 #[cfg(target_os = "macos")]
-fn build_menu(vencord_version: &str) -> muda::Menu {
+fn build_menu(vencord_version: &str, skin: bool) -> muda::Menu {
     use muda::accelerator::{Accelerator, CMD_OR_CTRL, Code, Modifiers};
-    use muda::{AboutMetadata, Menu, MenuItem, PredefinedMenuItem as P, Submenu};
+    use muda::{AboutMetadata, CheckMenuItem, Menu, MenuItem, PredefinedMenuItem as P, Submenu};
 
     let item = |id: &str, text: &str, mods: Modifiers, key: Code| {
         MenuItem::with_id(id, text, true, Some(Accelerator::new(mods, key)))
@@ -192,6 +202,13 @@ fn build_menu(vencord_version: &str) -> muda::Menu {
         &[
             &item("reload", "Reload", CMD_OR_CTRL, Code::KeyR),
             &item("devtools", "Developer Tools", CMD_OR_CTRL | Modifiers::ALT, Code::KeyI),
+            &CheckMenuItem::with_id(
+                "skin",
+                "Glass Skin",
+                true,
+                skin,
+                Some(Accelerator::new(CMD_OR_CTRL | Modifiers::SHIFT, Code::KeyG)),
+            ),
             &P::separator(),
             &item("zoom-in", "Zoom In", CMD_OR_CTRL, Code::Equal),
             &item("zoom-out", "Zoom Out", CMD_OR_CTRL, Code::Minus),
@@ -238,6 +255,15 @@ fn handle_ipc(
         "ready" => {
             let _ = proxy.send_event(UserEvent::Ready(msg.to_string()));
         }
+        "drag" => {
+            let _ = proxy.send_event(UserEvent::Drag);
+        }
+        "zoom-window" => {
+            let _ = proxy.send_event(UserEvent::ZoomWindow);
+        }
+        "probe" => {
+            let _ = proxy.send_event(UserEvent::Probe(msg.to_string()));
+        }
         "css" => {
             let Some(id) = msg.get("id").and_then(Value::as_u64) else { return };
             let source = text("css").to_owned();
@@ -283,8 +309,25 @@ fn main() -> wry::Result<()> {
     let mut window_builder = WindowBuilder::new()
         .with_title(APP_NAME)
         .with_min_inner_size(tao::dpi::LogicalSize::new(MIN_SIZE.0, MIN_SIZE.1))
-        .with_background_color(BACKGROUND)
         .with_maximized(saved.maximized);
+    #[cfg(target_os = "macos")]
+    {
+        // A see-through window: the system blur behind it is what the glass
+        // skin shows through. The title bar blends into it but still drags.
+        use tao::platform::macos::WindowBuilderExtMacOS;
+        window_builder = window_builder
+            .with_transparent(true)
+            .with_titlebar_transparent(true)
+            .with_title_hidden(true)
+            // No separate title strip: the page runs to the top edge and
+            // the window buttons sit inside Discord's own top bar.
+            .with_fullsize_content_view(true)
+            .with_traffic_light_inset(tao::dpi::LogicalPosition::new(14.0, 16.0));
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        window_builder = window_builder.with_background_color(BACKGROUND);
+    }
     window_builder = if saved.size.0 > 0 {
         window_builder.with_inner_size(PhysicalSize::new(saved.size.0, saved.size.1))
     } else {
@@ -305,17 +348,20 @@ fn main() -> wry::Result<()> {
         "\"use strict\";if(!window.__oxicord)throw new Error(\"oxicord: not a Discord page\");\n{}",
         bundle.js
     );
-    let postamble = include_str!("js/postamble.js").replace(
-        "__VENCORD_CSS__",
-        &serde_json::to_string(&*bundle.css).unwrap_or_else(|_| "\"\"".into()),
-    );
+    // The glass skin needs the see-through window, which only macOS has here.
+    let mut skin = saved.skin && cfg!(target_os = "macos");
+    let js_string = |text: &str| serde_json::to_string(text).unwrap_or_else(|_| "\"\"".into());
+    let postamble = include_str!("js/postamble.js")
+        .replace("__VENCORD_CSS__", &js_string(&bundle.css))
+        .replace("__OXICORD_SKIN_CSS__", &js_string(include_str!("skin.css")))
+        .replace("__OXICORD_SKIN_ON__", if skin { "true" } else { "false" })
+        .replace("__OXICORD_INSET__", if cfg!(target_os = "macos") { "true" } else { "false" });
 
     let mut builder = WebViewBuilder::new()
         .with_url(home_url())
         .with_initialization_script_for_main_only(preamble, true)
         .with_initialization_script_for_main_only(vencord_js, true)
         .with_initialization_script_for_main_only(postamble, true)
-        .with_background_color(BACKGROUND)
         .with_devtools(true)
         .with_autoplay(true)
         .with_clipboard(true)
@@ -373,11 +419,11 @@ fn main() -> wry::Result<()> {
         });
     #[cfg(target_os = "macos")]
     {
-        builder = builder.with_user_agent(USER_AGENT);
+        builder = builder.with_user_agent(USER_AGENT).with_transparent(true);
     }
     #[cfg(not(target_os = "macos"))]
     {
-        builder = builder.with_hotkeys_zoom(true);
+        builder = builder.with_background_color(BACKGROUND).with_hotkeys_zoom(true);
     }
 
     #[cfg(not(any(
@@ -401,6 +447,8 @@ fn main() -> wry::Result<()> {
         builder.build_gtk(window.default_vbox().expect("window has no gtk container"))?
     };
 
+    #[cfg(target_os = "macos")]
+    glass::apply(&window);
     let mut zoom = saved.zoom;
     if (zoom - 1.0).abs() > f64::EPSILON {
         let _ = webview.zoom(zoom);
@@ -429,8 +477,8 @@ fn main() -> wry::Result<()> {
     let mut last_saved = saved;
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Wait;
-        let mut persist = |window: &Window, zoom: f64| {
-            let now = capture(window, zoom);
+        let mut persist = |window: &Window, zoom: f64, skin: bool| {
+            let now = capture(window, zoom, skin);
             if now != last_saved {
                 now.save(&config_dir);
                 last_saved = now;
@@ -441,7 +489,7 @@ fn main() -> wry::Result<()> {
             Event::NewEvents(StartCause::Init) => {
                 #[cfg(target_os = "macos")]
                 {
-                    menu = Some(build_menu(&vencord_version));
+                    menu = Some(build_menu(&vencord_version, skin));
                 }
                 let _ = &vencord_version;
                 notify::init();
@@ -477,6 +525,13 @@ fn main() -> wry::Result<()> {
                         webview.open_devtools();
                         None
                     }
+                    "skin" => {
+                        skin = !skin;
+                        let _ = webview.evaluate_script(&format!(
+                            "document.documentElement.toggleAttribute('data-ox-glass',{skin})"
+                        ));
+                        None
+                    }
                     "zoom-in" => Some(zoom + 0.1),
                     "zoom-out" => Some(zoom - 0.1),
                     "zoom-reset" => Some(1.0),
@@ -500,6 +555,18 @@ fn main() -> wry::Result<()> {
                     "[oxicord] page ready {} ms after launch: {report}",
                     started.elapsed().as_millis()
                 );
+            }
+
+            Event::UserEvent(UserEvent::Drag) => {
+                let _ = window.drag_window();
+            }
+
+            Event::UserEvent(UserEvent::ZoomWindow) => {
+                window.set_maximized(!window.is_maximized());
+            }
+
+            Event::UserEvent(UserEvent::Probe(report)) => {
+                eprintln!("[oxicord] page check: {report}");
                 if selftest {
                     println!("{report}");
                     *control_flow = ControlFlow::Exit;
@@ -507,7 +574,7 @@ fn main() -> wry::Result<()> {
             }
 
             Event::WindowEvent { event: WindowEvent::CloseRequested, .. } => {
-                persist(&window, zoom);
+                persist(&window, zoom, skin);
                 // On macOS closing the window keeps the app (and its
                 // notifications) alive, like Discord; Cmd+Q quits.
                 if cfg!(target_os = "macos") {
@@ -522,11 +589,24 @@ fn main() -> wry::Result<()> {
                 window.set_focus();
             }
 
-            Event::LoopDestroyed => persist(&window, zoom),
+            Event::LoopDestroyed => persist(&window, zoom, skin),
 
             _ => {}
         }
         #[cfg(target_os = "macos")]
         let _ = &menu;
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::badge_for;
+
+    #[test]
+    fn badge_follows_discord_title() {
+        assert_eq!(badge_for("(3) Discord | general").as_deref(), Some("3"));
+        assert_eq!(badge_for("• Discord | Friends").as_deref(), Some("•"));
+        assert_eq!(badge_for("Discord | Friends"), None);
+        assert_eq!(badge_for("Discord"), None);
+    }
 }

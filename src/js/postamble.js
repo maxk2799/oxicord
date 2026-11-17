@@ -86,6 +86,33 @@
         };
     };
 
+    // The built-in glass skin. It goes in first so Vencord themes and QuickCSS,
+    // which load later, can still override it.
+    const skin = document.createElement("style");
+    skin.id = "oxicord-skin";
+    skin.textContent = __OXICORD_SKIN_CSS__;
+    document.documentElement.append(skin);
+    // An attribute, not a class: Discord rewrites the class list as it boots.
+    document.documentElement.toggleAttribute("data-ox-glass", __OXICORD_SKIN_ON__);
+    document.documentElement.toggleAttribute("data-ox-inset", __OXICORD_INSET__);
+
+    // With no native title strip, Discord's top bar moves the window: drag on
+    // its empty space, double-click to zoom. Its buttons keep working.
+    if (__OXICORD_INSET__) {
+        document.addEventListener(
+            "mousedown",
+            e => {
+                if (e.button !== 0 || e.clientY > 44 || !(e.target instanceof Element)) return;
+                const bar = e.target.closest('div[class^="bar_"]');
+                if (!bar || !bar.querySelector(':scope > [class^="title_"]')) return;
+                if (e.target.closest('button, a, input, [role="button"], [class*="leading_"], [class*="trailing_"]')) return;
+                e.preventDefault();
+                ox.post({ t: e.detail >= 2 ? "zoom-window" : "drag" });
+            },
+            true
+        );
+    }
+
     installEditor();
 
     // Registered after Vencord's own DOMContentLoaded listener, so its style
@@ -100,9 +127,26 @@
                 vencord: typeof v === "object" && v !== null,
                 plugins: v?.Plugins?.plugins ? Object.keys(v.Plugins.plugins).length : 0,
                 css: (document.getElementById("vencord-css-core")?.textContent ?? "").length,
+                skin: document.documentElement.hasAttribute("data-ox-glass"),
                 ms: Math.round(performance.now() - ox.t0),
             });
         },
         { once: true }
     );
+
+    // A second look once Discord itself has booted: is the skin really applied?
+    setTimeout(() => {
+        const root = document.documentElement;
+        const cs = getComputedStyle(root);
+        ox.post({
+            t: "probe",
+            skin: root.hasAttribute("data-ox-glass"),
+            classes: root.className,
+            sidebar: cs.getPropertyValue("--background-base-lower").trim(),
+            pageBg: cs.backgroundColor,
+            bodyBg: getComputedStyle(document.body).backgroundColor,
+            title: document.title,
+            path: location.pathname.split("/").slice(0, 2).join("/"),
+        });
+    }, 5000);
 })();

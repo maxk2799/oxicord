@@ -1,0 +1,55 @@
+/* Oxicord glass skin. The server list and the channel/DM sidebar are one piece of dark glass, as in MeqScanner's
+   sidebar: the Mac's own blur behind the window, under a near-black tint so nothing behind the window is
+   recognisable, with light falling on it from above and a hairline where it meets the page. Everything else is
+   left as Discord's own dark theme (Onyx). Done through Discord's theme variables where possible, so it survives
+   their class-name churn. */
+
+html[data-ox-glass]:is(.theme-dark, .theme-darker, .theme-midnight) {
+  --ox-glass: rgba(6, 6, 6, 0.8);          /* the black behind the glass; the blur only glows through it */
+  --ox-line: rgba(255, 255, 255, 0.08);
+  --ox-sheen: linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.025) 180px, rgba(255, 255, 255, 0.012));
+}
+
+html[data-ox-glass]:is(.theme-dark, .theme-darker, .theme-midnight),
+html[data-ox-glass]:is(.theme-dark, .theme-darker, .theme-midnight) body,
+html[data-ox-glass]:is(.theme-dark, .theme-darker, .theme-midnight) #app-mount {
+  background: transparent !important;
+}
+
+/* Capture the theme's own page colour before it is overridden below, so the chat can stay exactly as it was. */
+html[data-ox-glass].theme-dark { --ox-page: var(--neutral-69, #1a1a1e); }
+html[data-ox-glass].theme-darker { --ox-page: var(--neutral-69, #121214); }
+html[data-ox-glass].theme-midnight { --ox-page: var(--neutral-100, #000000); }
+
+/* Discord re-declares its theme on inner containers (popouts, layers), so the overrides are repeated there. */
+html[data-ox-glass]:is(.theme-dark, .theme-darker, .theme-midnight),
+html[data-ox-glass]:is(.theme-dark, .theme-darker, .theme-midnight) :is(.theme-dark, .theme-darker, .theme-midnight) {
+  /* the frame behind the server list and sidebar: dark glass, and nothing painted on top of it */
+  --background-gradient-app-frame: var(--ox-glass);
+  --background-base-lowest: transparent;
+  --background-base-lower: transparent;
+  /* the chat, member list and everything else on the page: the theme's own solid colour */
+  --background-gradient-chat: var(--ox-page);
+  --custom-channel-members-bg: var(--ox-page);
+}
+
+/* The sheen and hairline. Class names carry a random suffix, so match on the stable prefix. */
+html[data-ox-glass]:is(.theme-dark, .theme-darker, .theme-midnight) nav[class*="guilds_"],
+html[data-ox-glass]:is(.theme-dark, .theme-darker, .theme-midnight) [class*="sidebarList_"] {
+  background: var(--ox-sheen) !important;
+  box-shadow: inset -1px 0 0 var(--ox-line);
+}
+
+/* The window has no separate title strip: Discord's own top bar is the title bar. Leave room at its left for the
+   three window buttons, and draw a hairline under it so it reads as one bar across the glass. */
+html[data-ox-inset] div[class^="bar_"]:has(> [class^="title_"]) {
+  padding-left: 76px;
+  box-sizing: border-box;
+  cursor: default;
+  -webkit-user-select: none;
+  user-select: none;
+}
+html[data-ox-inset][data-ox-glass] div[class^="bar_"]:has(> [class^="title_"]) {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.015));
+  box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.08);
+}

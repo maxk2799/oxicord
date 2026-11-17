@@ -11,11 +11,12 @@ pub struct State {
     pub size: (u32, u32),
     pub maximized: bool,
     pub zoom: f64,
+    pub skin: bool,
 }
 
 impl Default for State {
     fn default() -> Self {
-        Self { position: None, size: (0, 0), maximized: false, zoom: 1.0 }
+        Self { position: None, size: (0, 0), maximized: false, zoom: 1.0, skin: true }
     }
 }
 
@@ -41,6 +42,7 @@ impl State {
         if let Some(z) = v.get("zoom").and_then(Value::as_f64) {
             state.zoom = z.clamp(0.5, 2.5);
         }
+        state.skin = v.get("skin").and_then(Value::as_bool).unwrap_or(true);
         state
     }
 
@@ -52,6 +54,7 @@ impl State {
             "h": self.size.1,
             "maximized": self.maximized,
             "zoom": self.zoom,
+            "skin": self.skin,
         });
         let _ = fs::create_dir_all(config);
         let tmp = config.join("state.json.tmp");
