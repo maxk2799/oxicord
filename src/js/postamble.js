@@ -5,6 +5,17 @@
     if (!ox) return;
     const CORE_CSS = __VENCORD_CSS__;
 
+    // Chromium (Windows) runs this before the page has a root element; WebKit creates it first. Wait for it.
+    const onRoot = fn => {
+        if (document.documentElement) return fn();
+        const mo = new MutationObserver(() => {
+            if (!document.documentElement) return;
+            mo.disconnect();
+            fn();
+        });
+        mo.observe(document, { childList: true });
+    };
+
     // Vencord's plain web build expects its host to supply the core stylesheet
     // (the extension passes a URL; nothing does here), so fill it in directly.
     const fillCoreCss = () => {
@@ -91,10 +102,12 @@
     const skin = document.createElement("style");
     skin.id = "oxicord-skin";
     skin.textContent = __OXICORD_SKIN_CSS__;
-    document.documentElement.append(skin);
+    onRoot(() => document.documentElement.append(skin));
     // An attribute, not a class: Discord rewrites the class list as it boots.
-    document.documentElement.toggleAttribute("data-ox-glass", __OXICORD_SKIN_ON__);
-    document.documentElement.toggleAttribute("data-ox-inset", __OXICORD_INSET__);
+    onRoot(() => {
+        document.documentElement.toggleAttribute("data-ox-glass", __OXICORD_SKIN_ON__);
+        document.documentElement.toggleAttribute("data-ox-inset", __OXICORD_INSET__);
+    });
 
     // Discord takes a couple of seconds to boot, and its own loading screen is
     // invisible on a see-through window. Show the finished dark glass with a
@@ -102,7 +115,7 @@
     const splash = document.createElement("div");
     splash.id = "oxicord-splash";
     splash.innerHTML = "<i></i>";
-    document.documentElement.append(splash);
+    onRoot(() => document.documentElement.append(splash));
     const booted = () =>
         document.querySelector('nav[class*="guilds_"]') ||
         (/^\/(login|register|invite|oauth2|verify|reset)/.test(location.pathname) &&
@@ -120,7 +133,7 @@
         setTimeout(() => splash.remove(), 220);
     };
     const watcher = new MutationObserver(() => booted() && lift());
-    watcher.observe(document.documentElement, { childList: true, subtree: true });
+    watcher.observe(document, { childList: true, subtree: true });
     const giveUp = setTimeout(lift, 15000);
 
     // With no native title strip, Discord's top bar moves the window: drag on
