@@ -31,7 +31,7 @@ scripts/bundle-macos.sh --install   # builds and copies Oxicord.app to /Applicat
 
 ## Limits
 
-- Built and tested on macOS only. The code has Windows and Linux paths, but they are untested.
+- macOS is the main platform. Windows is built by GitHub Actions and smoke-tested there (Discord loads, Vencord starts), but has no glass skin, menu or Dock-style badge. Linux is untested.
 - Vencord runs in its web flavour, so plugins that need Vencord's desktop helper process are not available.
 - Screen sharing depends on what the system webview supports.
 - The app is ad-hoc signed, not notarised.
