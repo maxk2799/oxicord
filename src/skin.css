@@ -52,10 +52,16 @@ html[data-ox-glass]:is(.theme-dark, .theme-darker, .theme-midnight) [class*="sid
   box-shadow: none;
   border-radius: 0 !important;
 }
-/* Only the sidebar's outer edge, where it meets the page, gets the hairline. Discord rounds the sidebar's top-left
-   corner, which shows as a notch against the glass; square it off. */
+/* Discord rounds the sidebar's top-left corner, which shows as a notch inside the glass; square it off. Instead the
+   page (top bar, chat, member list) is a rounded card set into the glass, with a hairline round its edge. */
 html[data-ox-glass]:is(.theme-dark, .theme-darker, .theme-midnight) [class*="sidebarList_"] {
-  box-shadow: var(--ox-rim);
+  box-shadow: inset 0 18px 40px -24px rgba(255, 255, 255, 0.10);
+}
+html[data-ox-glass]:is(.theme-dark, .theme-darker, .theme-midnight) div[class^="page_"] {
+  border-radius: 12px 0 0 0 !important;
+  overflow: hidden;
+  box-shadow: -1px -1px 0 var(--ox-line), -8px 0 24px rgba(0, 0, 0, 0.35);
+  isolation: isolate;
 }
 html[data-ox-glass]:is(.theme-dark, .theme-darker, .theme-midnight) div[class^="sidebar_"],
 html[data-ox-glass]:is(.theme-dark, .theme-darker, .theme-midnight) div[class^="sidebar_"] > * {
